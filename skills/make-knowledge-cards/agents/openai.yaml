@@ -1,0 +1,93 @@
+interface:
+  display_name: "Make Knowledge Cards"
+  short_description: "把文章或 Markdown/TXT 文件提炼成 5-8 张知识卡片"
+  icon: "🗂️"
+  category: "productivity"
+  version: "0.1.0"
+  license: "MIT"
+
+  # 触发本 Skill 的典型用户表达
+  trigger_examples:
+    - "把这篇内容做成知识卡片"
+    - "帮我把这篇文章提炼成几张卡片"
+    - "读一下 notes.md，整理成知识卡片"
+    - "这篇太长记不住，帮我卡片化"
+
+model:
+  # 纯规则驱动，无需外部工具，不引入脚本
+  tools: []
+  temperature: 0.3
+
+input:
+  type: object
+  required:
+    - source
+  properties:
+    source:
+      type: string
+      description: >
+        文章正文（直接粘贴的纯文本），或本地 Markdown/TXT 文件的绝对路径。
+        不支持 URL、PDF、图片与 Office 文档。
+    card_count:
+      type: integer
+      description: >
+        期望的卡片数量，默认 5-8。这是上限而非硬性目标：
+        当原文信息量不足时按实际可支撑的知识点数量输出，不凑数。
+      minimum: 1
+      maximum: 8
+      default: 8
+    include_quiz:
+      type: boolean
+      description: 是否在「例子或自测问题」中优先使用自测问题。默认由模型在每张卡片上自行混用。
+      default: true
+    output_file:
+      type: string
+      description: 可选的输出文件路径。留空则直接在对话中返回 Markdown 文本。
+
+output:
+  type: object
+  properties:
+    markdown:
+      type: string
+      description: 完整的知识卡片 Markdown 文本，包含标题行、来源与卡片数量说明，以及每张卡片的四段结构。
+    card_count:
+      type: integer
+      description: 实际生成的卡片数量。
+    cards:
+      type: array
+      description: 结构化卡片列表，便于程序化消费。
+      items:
+        type: object
+        properties:
+          title:
+            type: string
+            description: 卡片标题，4-12 字的名词性短语。
+          key_point:
+            type: string
+            description: 核心知识，1-2 句话。
+          explanation:
+            type: string
+            description: 简明解释，2-4 句话。
+          example:
+            type: string
+            description: 例子，仅作说明用途时不得引入原文没有的新事实。
+          quiz:
+            type: string
+            description: 自测问题。仅写问题，不写答案，除非用户明确要求。
+    coverage_note:
+      type: string
+      description: 可选的覆盖说明，解释因取舍而未被成卡的内容类型。
+
+constraints:
+  - 所有内容必须来自原文，禁止编造事实、数字、因果与建议
+  - 一张卡片只讲一个知识点
+  - 合并重复内容，同一知识点只出现一次
+  - 信息不足时按实际数量输出，不强行凑够 5 张
+  - 忠实保留原文的语气强度与观点归属
+  - 输出为纯 Markdown，不生成 HTML 或图形界面
+
+limitations:
+  - 不支持网页抓取（URL 输入）
+  - 不支持 PDF、图片、Office 文档等二进制格式
+  - 不支持 Anki 导出与 .apkg 牌组打包
+  - 不提供图形界面

@@ -1,0 +1,10 @@
+# 统一换行符：仓库内与检出后一律使用 LF，避免 Windows 的 autocrlf 造成混合换行
+* text=auto eol=lf
+
+# 二进制文件不做任何转换
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.apkg binary
