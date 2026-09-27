@@ -1,0 +1,50 @@
+# Netlify 部署配置
+#
+# ⚠️ 这个文件必须放在**仓库根目录**（Netlify 只读根目录的 netlify.toml）。
+#
+# 重要：构建基准目录（base）必须是仓库根目录，不能设成 app/。
+# 因为函数（app/netlify/functions/api.mjs）需要 import 上级目录的
+# app/core.mjs 与 app/prompt-bundle.mjs —— 若 base 设成 app/，
+# 函数目录之外的模块不会被打包，线上会报 "Cannot find module"。
+#
+# 对应的后台设置（Site configuration → Build & deploy）：
+#   Base directory   : 留空（仓库根）
+#   Build command    : 留空（本项目无构建步骤）
+#   Publish directory: app/public
+#
+# 本应用的部署要点与自托管版本完全一致：只需要 2 个环境变量——
+#   LLM_BASE_URL  例如 https://api.deepseek.com/v1
+#   LLM_API_KEY   你的密钥（只存在服务端，浏览器拿不到）
+# 建议再设一个：
+#   APP_TOKEN     访问口令（公网部署强烈建议设置）
+
+[build]
+  # 无构建步骤：零依赖、原生 HTML/CSS/JS
+  command = ""
+  # 前端静态资源
+  publish = "app/public"
+  # 函数目录
+  functions = "app/netlify/functions"
+
+# /api/* → 函数
+# 前端仍请求 /api/cards 与 /api/health，与自托管版本路径完全一致，
+# 因此前端代码不需要为部署方式做任何分支判断。
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# 兜底：其余路径回首页
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

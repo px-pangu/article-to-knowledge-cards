@@ -27,6 +27,13 @@
 **能力边界（暂不支持）**：网页抓取（URL）、PDF / 图片 / Office 文档、Anki 导出与 `.apkg`
 牌组打包、图形界面。输入仅限纯文本——直接粘贴的正文，或本地 `.md` / `.txt` 文件。
 
+> **关于图形界面**：Skill 本身不提供界面，只在对话中输出 Markdown。
+> 若需要网页界面，本仓库另附一个网页应用（[`app/`](app/)）——
+> 它复用同一份 `SKILL.md` 作为抽卡规则，只是把输出格式从 Markdown 适配为 JSON。
+> 支持两种部署方式：**自托管**（`node server.js`）或 **Netlify Functions**
+> （见 [app/DEPLOY-NETLIFY.md](app/DEPLOY-NETLIFY.md)）。
+> 该应用仍不支持网页抓取、PDF 与 Anki 导出。
+
 ## 3. 安装方法
 
 本 Skill 为纯规则型，**不包含任何脚本**，只需复制目录即可。
@@ -196,6 +203,26 @@ cp -r skills/make-knowledge-cards ~/.workbuddy/skills/
 ├── .gitignore                  # 忽略开发侧笔记、缓存与临时文件
 ├── LICENSE                     # MIT 许可
 ├── README.md
+├── netlify.toml                # Netlify 部署配置（必须在仓库根目录）
+├── app/                        # 网页应用（把 Skill 包成网站）
+│   ├── core.mjs                # 抽卡核心逻辑（两种部署方式共用）
+│   ├── server.js               # 自托管入口：零依赖单端口服务
+│   ├── README.md               # 运行与配置文档
+│   ├── DEPLOY-NETLIFY.md       # Netlify 部署指南
+│   ├── prompt-skill.md         # 抽卡规则（自托管版用），由 SKILL.md 同步
+│   ├── prompt-bundle.mjs       # 抽卡规则（Netlify 版用），同一来源
+│   ├── prompt-output-contract.md  # JSON 输出契约（Skill 与 App 之间唯一的适配层）
+│   ├── sync-prompt.mjs         # SKILL.md → prompt-skill.md + prompt-bundle.mjs
+│   ├── doctor.mjs              # 一键诊断：逐环检查并指出断裂点
+│   ├── netlify/functions/api.mjs  # Netlify 无服务器函数入口
+│   ├── test-*.mjs              # 冒烟 + 端到端 + 容错单测 + 压测 + Netlify 校验
+│   ├── mock-model.mjs          # 假模型服务（不想花额度时用）
+│   ├── .env.example            # 配置模板（复制为 .env 使用）
+│   ├── package.json            # 无任何依赖，仅定义脚本
+│   └── public/                 # 前端：原生 HTML/CSS/JS（仅暴露此目录）
+│       ├── index.html
+│       ├── style.css
+│       └── app.js
 ├── skills/
 │   └── make-knowledge-cards/
 │       ├── SKILL.md            # Skill 主体：触发条件、工作流、质量红线、输出格式
@@ -210,6 +237,18 @@ cp -r skills/make-knowledge-cards ~/.workbuddy/skills/
     ├── verify_skill.py         # 校验 frontmatter、目录结构与 openai.yaml
     └── verify_license.py       # 校验 LICENSE 与官方 MIT 模板一致
 ```
+
+### Skill 与 App 的关系
+
+抽卡规则**只有一份真源** —— `skills/make-knowledge-cards/SKILL.md`。App 启动时读取它，
+注入为 system prompt。因此改规则只需改 SKILL.md，跑一次 `node sync-prompt.mjs`
+再重启服务即可，不需要修改任何代码。
+
+`app/prompt-output-contract.md` 是唯一的适配层：Skill 原本输出 Markdown 给人看，
+网页应用需要 JSON 给程序用，该文件要求模型「除输出格式外，SKILL.md 的全部规则继续完全适用」。
+
+App 的部署方式与配置项见 [app/README.md](app/README.md)。
+
 
 `.gitignore` 中明确排除了 `.workbuddy/` —— 该目录存放开发过程的工作记录，
 含本机绝对路径，不属于发布内容。

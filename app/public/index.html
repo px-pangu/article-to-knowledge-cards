@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文章转知识卡片</title>
+<meta name="description" content="粘贴一篇文章，自动提炼成 5-8 张原子化知识卡片，每张含标题、核心知识、简明解释、例子或自测问题。">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='6' width='24' height='20' rx='3' fill='none' stroke='%23534AB7' stroke-width='2'/%3E%3Cpath d='M9 13h14M9 18h9' stroke='%23534AB7' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="4" y="6" width="24" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M9 13h14M9 18h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>文章转知识卡片</h1>
+        <p class="brand-sub">粘贴一篇文章，提炼成 5-8 张原子化知识卡片</p>
+      </div>
+    </div>
+    <div class="status" id="status" title="服务状态">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">连接中…</span>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="panel input-panel" aria-label="输入">
+    <div class="panel-head">
+      <h2>输入文章</h2>
+      <div class="panel-actions">
+        <button type="button" class="btn btn-ghost" id="uploadBtn">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 14V4m0 0L6 8m4-4l4 4M4 16h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          上传文件
+        </button>
+        <button type="button" class="btn btn-ghost" id="clearBtn">清空</button>
+      </div>
+      <input type="file" id="fileInput" accept=".md,.markdown,.txt,.text" hidden>
+    </div>
+
+    <textarea id="textInput" spellcheck="false"
+      placeholder="把文章正文粘贴到这里……&#10;&#10;支持纯文本，也可以是本地 .md / .txt 文件（点上方「上传文件」）。&#10;网页链接、PDF、图片不支持，请先转成纯文本。"></textarea>
+
+    <div class="input-meta">
+      <span id="charCount">0 字</span>
+      <span id="fileHint" class="muted"></span>
+    </div>
+
+    <details class="token-box" id="tokenBox" hidden>
+      <summary>访问口令</summary>
+      <div class="token-body">
+        <p class="muted">本站已启用访问口令，请输入后再抽卡。口令会保存在本机浏览器中。</p>
+        <input type="password" id="tokenInput" placeholder="访问口令" autocomplete="off">
+      </div>
+    </details>
+
+    <button type="button" class="btn btn-primary btn-block" id="generateBtn">
+      <span id="generateLabel">生成知识卡片</span>
+    </button>
+    <p class="hint" id="hint">通常需要 20-40 秒，卡片较多时会更久。请勿关闭页面。</p>
+    <p class="hint" id="elapsed" hidden></p>
+  </section>
+
+  <section class="panel output-panel" aria-label="输出">
+    <div class="panel-head">
+      <h2>知识卡片</h2>
+      <div class="panel-actions" id="outputActions" hidden>
+        <button type="button" class="btn btn-ghost" id="copyBtn">复制 Markdown</button>
+        <button type="button" class="btn btn-ghost" id="downloadBtn">下载 .md</button>
+      </div>
+    </div>
+
+    <div class="empty-state" id="emptyState">
+      <p>左侧粘贴文章后点「生成知识卡片」。</p>
+      <ul>
+        <li>一张卡片只讲一个知识点，重复内容会合并</li>
+        <li>只使用原文有的信息，不编造、不注水</li>
+        <li>信息量不足时按实际数量输出，不凑数</li>
+      </ul>
+    </div>
+
+    <div class="banner banner-error" id="errorBox" hidden></div>
+
+    <div id="result" hidden>
+      <div class="result-meta" id="resultMeta"></div>
+      <div class="banner banner-notice" id="noticeBox" hidden></div>
+      <div class="cards" id="cards"></div>
+      <div class="coverage" id="coverageBox" hidden></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p>抽卡规则来自开源 Skill <span class="mono">make-knowledge-cards</span>，模型按 SKILL.md 中的规则工作。</p>
+  <p class="muted">不支持网页抓取、PDF、图片与 Anki 导出。文章内容仅用于本次请求，不落盘、不留存。</p>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

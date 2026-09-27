@@ -70,3 +70,6 @@ desktop.ini
 *.pem
 *.key
 *.p12
+
+# ── Netlify（本地 CLI 缓存与构建产物）──
+.netlify/

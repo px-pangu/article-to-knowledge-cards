@@ -1,0 +1,25 @@
+{
+  "name": "article-to-knowledge-cards-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "把文章转成知识卡片的单端口网页应用（零依赖）",
+  "type": "commonjs",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "dry-run": "node -e \"process.env.DRY_RUN='1';require('./server.js')\"",
+    "sync-prompt": "node sync-prompt.mjs",
+    "doctor": "node doctor.mjs",
+    "smoke": "node test-smoke-check.mjs",
+    "e2e": "node test-e2e-check.mjs",
+    "test:json": "node test-repair-json.mjs",
+    "stress": "node test-stress-check.mjs",
+    "netlify": "node test-netlify.mjs"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}
