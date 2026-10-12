@@ -75,6 +75,7 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 }
 .status-dot.ok { background: var(--ok); }
 .status-dot.demo { background: var(--warn); }
+.status-dot.local { background: var(--accent); }
 .status-dot.bad { background: var(--err); }
 
 /* ---------- layout ---------- */
@@ -143,12 +144,21 @@ textarea::placeholder { color: var(--text-3); }
 .token-box summary { cursor: pointer; font-size: 13px; color: var(--text-2); }
 .token-body { padding-top: 10px; }
 .token-body p { margin: 0 0 8px; font-size: 12px; }
-input[type="password"] {
+input[type="password"], .local-cfg input[type="text"] {
   width: 100%; padding: 8px 11px;
   border: 1px solid var(--border); border-radius: var(--radius);
   font-family: inherit; font-size: 14px; color: var(--text);
   background: var(--surface);
 }
+
+/* 浏览器直连模式的配置面板 */
+.local-cfg .cfg-label {
+  display: block; margin: 10px 0 4px;
+  font-size: 12.5px; color: var(--text-2);
+}
+.local-cfg .cfg-tip { margin-top: 8px; }
+.local-cfg summary { color: var(--accent-border); }
+.local-cfg[open] summary { color: var(--accent); font-weight: 500; }
 
 /* ---------- buttons ---------- */
 

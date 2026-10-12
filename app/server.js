@@ -62,8 +62,8 @@ const config = {
 };
 
 /* ---------- 抽卡核心逻辑 ----------
- * 真正的实现在 core.mjs —— 与 Netlify Functions 版本共用同一份，
- * 确保「抽卡规则只有一份真源」这一约定在两种部署方式下都成立。
+ * 真正的实现在 core.mjs —— 与 Netlify Functions 版、浏览器直连版共用同一份，
+ * 确保「抽卡规则只有一份真源」这一约定在三种部署方式下都成立。
  * 本文件只负责把文件读进来、把配置传进去。
  */
 
@@ -115,6 +115,8 @@ const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
@@ -320,6 +322,43 @@ const server = http.createServer((req, res) => {
   sendJson(res, 405, { ok: false, error: "不支持的方法。" });
 });
 
+/* ---------- 自动打开浏览器 ----------
+ * 只有 start.bat 会设置 OPEN_BROWSER=1（双击启动的体验），
+ * 直接跑 `node server.js` 或跑测试时不会带这个变量，因此不会弹浏览器。
+ * 打开失败只提示、不影响服务本身。
+ */
+function openBrowser(url) {
+  const { spawn } = require("node:child_process");
+  const [cmd, args] =
+    process.platform === "win32"
+      ? ["cmd", ["/c", "start", "", url]]
+      : process.platform === "darwin"
+        ? ["open", [url]]
+        : ["xdg-open", [url]];
+  try {
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true });
+    child.on("error", () => {});
+    child.unref();
+    console.log(`  浏览器   : 已打开 ${url}`);
+  } catch {
+    console.log(`  浏览器   : 未能自动打开，请手动访问 ${url}`);
+  }
+}
+
+// 监听地址可能是 0.0.0.0（对外），但浏览器要用回环地址
+const localUrl = `http://127.0.0.1:${config.port}`;
+
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    // 常见于重复双击快捷方式：服务其实已经在跑了，直接把页面打开即可。
+    console.log(`端口 ${config.port} 已被占用 —— 服务已经在运行了，无需重复启动。`);
+    if (process.env.OPEN_BROWSER === "1") openBrowser(localUrl);
+    process.exit(0);
+  }
+  console.error(`启动失败：${err && err.message ? err.message : err}`);
+  process.exit(1);
+});
+
 server.listen(config.port, config.host, () => {
   const mode = config.dryRun ? "演示模式（DRY_RUN=1，不调用模型）" : `实时模式 · ${config.model}`;
   console.log(`文章转知识卡片服务已启动`);
@@ -330,4 +369,5 @@ server.listen(config.port, config.host, () => {
   if (!config.dryRun && !config.apiKey) {
     console.log(`  [警告] 未配置 LLM_API_KEY，抽卡接口会返回错误。`);
   }
+  if (process.env.OPEN_BROWSER === "1") openBrowser(localUrl);
 });

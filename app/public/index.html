@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>文章转知识卡片</title>
 <meta name="description" content="粘贴一篇文章，自动提炼成 5-8 张原子化知识卡片，每张含标题、核心知识、简明解释、例子或自测问题。">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="./style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='6' width='24' height='20' rx='3' fill='none' stroke='%23534AB7' stroke-width='2'/%3E%3Cpath d='M9 13h14M9 18h9' stroke='%23534AB7' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -60,6 +60,20 @@
       </div>
     </details>
 
+    <details class="token-box local-cfg" id="localCfgBox" hidden>
+      <summary>模型配置（浏览器直连）</summary>
+      <div class="token-body">
+        <p class="muted">当前站点没有服务端（纯静态托管）。抽卡请求将由<strong>你的浏览器直接发往模型接口</strong>，不经过任何中间服务器；密钥只保存在本机浏览器（localStorage），不会上传，也不会写进网页代码。</p>
+        <label class="cfg-label" for="cfgBaseUrl">接口地址（OpenAI 兼容）</label>
+        <input type="text" id="cfgBaseUrl" placeholder="https://api.deepseek.com/v1" spellcheck="false" autocomplete="off">
+        <label class="cfg-label" for="cfgModel">模型名称</label>
+        <input type="text" id="cfgModel" placeholder="deepseek-chat" spellcheck="false" autocomplete="off">
+        <label class="cfg-label" for="cfgApiKey">API Key</label>
+        <input type="password" id="cfgApiKey" placeholder="sk-…" autocomplete="off">
+        <p class="muted cfg-tip">支持 DeepSeek / 通义 / Kimi / 智谱 / OpenAI / Ollama 等兼容接口。个别不允许浏览器直连（CORS）的服务会失败，换 DeepSeek 即可。</p>
+      </div>
+    </details>
+
     <button type="button" class="btn btn-primary btn-block" id="generateBtn">
       <span id="generateLabel">生成知识卡片</span>
     </button>
@@ -104,6 +118,6 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="/app.js"></script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>

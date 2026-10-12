@@ -1,6 +1,13 @@
 # 统一换行符：仓库内与检出后一律使用 LF，避免 Windows 的 autocrlf 造成混合换行
 * text=auto eol=lf
 
+# Windows 批处理必须保持 CRLF —— cmd.exe 对 LF-only 的 .bat 解析有已知问题
+# （尤其 for / if 代码块与标签跳转），所以单独覆盖上面的 eol=lf。
+# 注意：这两行必须在 * text=auto eol=lf 之后，后写的规则优先级更高。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf
+
 # 二进制文件不做任何转换
 *.png binary
 *.jpg binary

@@ -1,34 +1,98 @@
 @echo off
-chcp 65001 >nul
+rem ===============================================================
+rem  ÎÄÕÂ×ªÖªÊ¶¿¨Æ¬ ¡ª¡ª Æô¶¯½Å±¾
+rem
+rem  [!] ±¾ÎÄ¼þ±ØÐë±£³Ö GBK(cp936) ±àÂë + CRLF »»ÐÐ£¬ÇëÎð¸Ä³É UTF-8¡£
+rem      Êµ²â£ºcmd.exe ¶ÁÈ¡ UTF-8 µÄ .bat Ê±£¬Òò¶à×Ö½Ú×Ö·ûµ¼ÖÂ×Ö½ÚÆ«ÒÆ
+rem      ´íÂÒ£¬»á°ÑºóÐøÃüÁîÐÐ´ÓÖÐ¼ä½Ø¶Ï£¬²úÉú´óÁ¿
+rem      ¡¸'xxx' ²»ÊÇÄÚ²¿»òÍâ²¿ÃüÁî¡¹±¨´í£»¼Ó chcp 65001 Ò²ÎÞÐ§£¬
+rem      ´ø BOM ¸ü»áÁ¬ @echo off ¶¼Ê§Ð§¡£Ö»ÓÐ GBK + CRLF Õý³£¡£
+rem      ÈôÐèÐÞ¸Ä£¬¸ÄÍêÎñ±Ø×ª»Ø GBK ±àÂëÔÙ±£´æ¡£
+rem ===============================================================
 cd /d "%~dp0"
-title Article to Knowledge Cards
+title ÎÄÕÂ×ªÖªÊ¶¿¨Æ¬
 echo.
-echo  æ–‡ç« è½¬çŸ¥è¯†å¡ç‰‡ â€”â€” æ­£åœ¨å¯åŠ¨
+echo  ÎÄÕÂ×ªÖªÊ¶¿¨Æ¬ ¡ª¡ª ÕýÔÚÆô¶¯
 echo  ---------------------------------------------
 echo.
 
-if not exist ".env" (
-  echo  [é”™è¯¯] æ‰¾ä¸åˆ° .env é…ç½®æ–‡ä»¶ã€‚
+rem ---------------------------------------------------------------
+rem  ¶¨Î» Node.js
+rem  ±¾»úÏµÍ³ PATH ÖÐÃ»ÓÐ node£¨Node ÓÉ WorkBuddy ÄÚÖÃÌá¹©£©£¬
+rem  Ö±½ÓÐ´ node »á±¨¡¸²»ÊÇÄÚ²¿»òÍâ²¿ÃüÁî¡¹£¬Òò´Ë±ØÐëÏÔÊ½²éÕÒ¡£
+rem ---------------------------------------------------------------
+set "NODE_EXE="
+
+rem 1) ÓÅÏÈÓÃÏµÍ³ PATH ÀïµÄ node
+for /f "delims=" %%i in ('where node 2^>nul') do (
+  if not defined NODE_EXE set "NODE_EXE=%%i"
+)
+
+rem 2) WorkBuddy ÄÚÖÃµÄ node£¨È¡°æ±¾Ä¿Â¼ÖÐ×ÖÄ¸Ðò×îºóÒ»¸ö£©
+if not defined NODE_EXE (
+  for /d %%v in ("%USERPROFILE%\.workbuddy\binaries\node\versions\*") do (
+    if exist "%%~fv\node.exe" set "NODE_EXE=%%~fv\node.exe"
+  )
+)
+
+rem 3) ³£¹æ°²×°Î»ÖÃ
+if not defined NODE_EXE (
+  if exist "%ProgramFiles%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"
+)
+if not defined NODE_EXE (
+  if exist "%ProgramFiles(x86)%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles(x86)%\nodejs\node.exe"
+)
+
+if not defined NODE_EXE (
+  echo  [´íÎó] ÕÒ²»µ½ Node.js¡£
   echo.
-  echo  è¯·å…ˆæ‰§è¡Œï¼šcopy .env.example .env
-  echo  ç„¶åŽç¼–è¾‘ .env å¡«å…¥ LLM_API_KEYã€‚
+  echo  ±¾Ó¦ÓÃÐèÒª Node.js 18 »ò¸ü¸ß°æ±¾£¬ÒÑ²éÕÒÏÂÁÐÎ»ÖÃ£º
+  echo    - ÏµÍ³ PATH
+  echo    - %USERPROFILE%\.workbuddy\binaries\node\versions\
+  echo    - Program Files\nodejs
+  echo.
+  echo  ÇëÏÈ°²×° Node.js£º https://nodejs.org/
+  echo.
+  pause
+  exit /b 1
+)
+
+echo  Node£º %NODE_EXE%
+echo.
+
+if not exist ".env" (
+  echo  [´íÎó] ÕÒ²»µ½ .env ÅäÖÃÎÄ¼þ¡£
+  echo.
+  echo  ÇëÏÈÖ´ÐÐ£ºcopy .env.example .env
+  echo  È»ºó±à¼­ .env ÌîÈë LLM_API_KEY¡£
   echo.
   pause
   exit /b 1
 )
 
 if not exist "prompt-skill.md" (
-  echo  [æç¤º] ç¼ºå°‘ prompt-skill.mdï¼Œæ­£åœ¨ä»Ž SKILL.md åŒæ­¥...
-  node sync-prompt.mjs
+  echo  [ÌáÊ¾] È±ÉÙ prompt-skill.md£¬ÕýÔÚ´Ó SKILL.md Í¬²½...
+  "%NODE_EXE%" sync-prompt.mjs
   echo.
 )
 
-echo  æœåŠ¡å¯åŠ¨åŽï¼Œç”¨æµè§ˆå™¨æ‰“å¼€ï¼š http://127.0.0.1:8787
-echo  æŒ‰ Ctrl+C å¯åœæ­¢æœåŠ¡ã€‚
+echo  ·þÎñÆô¶¯ºó£¬ä¯ÀÀÆ÷»á×Ô¶¯´ò¿ª£º http://127.0.0.1:8787
+echo  °´ Ctrl+C ¿ÉÍ£Ö¹·þÎñ¡£
 echo.
 
-node server.js
+rem ---------------------------------------------------------------
+rem  Æô¶¯ node Ç°×öÁ½¼þÊÂ£º
+rem    1) set OPEN_BROWSER=1 ¡ª¡ª ·þÎñ¾ÍÐ÷ºó×Ô¶¯´ò¿ªä¯ÀÀÆ÷
+rem    2) chcp 65001        ¡ª¡ª node °´ UTF-8 Êä³ö£¬¶ø¿ØÖÆÌ¨Ä¬ÈÏÊÇ
+rem                            GBK(936)£¬²»ÇÐÒ³ node µÄÖÐÎÄ¾ÍÊÇÂÒÂë
+rem  [!] ´ÓÇÐÒ³µ½ÇÐ»ØÖ®¼ä£¬±¾ÎÄ¼þÖ»ÄÜ³öÏÖ ASCII ×Ö·û ¡ª¡ª
+rem      ÄÇÐ©ÐÐ»á±»°´ UTF-8 ½âÎö£¬Èôº¬ GBK ÖÐÎÄ¾Í»á½âÎö´íÂÒ¡£
+rem ---------------------------------------------------------------
+set "OPEN_BROWSER=1"
+chcp 65001 >nul
+"%NODE_EXE%" server.js
 
+chcp 936 >nul
 echo.
-echo  æœåŠ¡å·²åœæ­¢ã€‚
+echo  ·þÎñÒÑÍ£Ö¹£¬°´ÈÎÒâ¼ü¹Ø±Õ´°¿Ú¡£
 pause

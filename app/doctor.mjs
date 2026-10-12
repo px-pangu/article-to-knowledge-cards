@@ -183,6 +183,19 @@ async function main() {
         warn("缺少 prompt-bundle.mjs —— Netlify 版提示词，修复：node sync-prompt.mjs");
       }
     }
+
+    // 纯静态托管（浏览器直连模式）的前端依赖（可选，缺失时只提示）
+    // 前端探测不到 /api 时会自动切换为浏览器直连，此时需要这三个文件与 index.html 同级
+    const staticDeps = ["core.mjs", "prompt-skill.md", "prompt-output-contract.md"].filter(
+      (f) => !fs.existsSync(path.join(publicDir, f))
+    );
+    if (staticDeps.length) {
+      warn(
+        `public/ 缺少静态托管依赖：${staticDeps.join("、")} —— ` +
+          "纯静态部署（GitHub Pages 等）的浏览器直连模式需要它们与 index.html 同级，" +
+          "修复：node sync-prompt.mjs（自托管模式不受影响）"
+      );
+    }
   }
 
   /* 4. 规则同步 */

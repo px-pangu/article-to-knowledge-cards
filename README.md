@@ -30,8 +30,9 @@
 > **关于图形界面**：Skill 本身不提供界面，只在对话中输出 Markdown。
 > 若需要网页界面，本仓库另附一个网页应用（[`app/`](app/)）——
 > 它复用同一份 `SKILL.md` 作为抽卡规则，只是把输出格式从 Markdown 适配为 JSON。
-> 支持两种部署方式：**自托管**（`node server.js`）或 **Netlify Functions**
-> （见 [app/DEPLOY-NETLIFY.md](app/DEPLOY-NETLIFY.md)）。
+> 支持三种部署方式：**自托管**（`node server.js`）、**Netlify Functions**
+> （见 [app/DEPLOY-NETLIFY.md](app/DEPLOY-NETLIFY.md)）或**纯静态托管**
+> （上传 `app/public/` 目录，浏览器直连模型，无需任何后端）。
 > 该应用仍不支持网页抓取、PDF 与 Anki 导出。
 
 ## 3. 安装方法
@@ -205,24 +206,27 @@ cp -r skills/make-knowledge-cards ~/.workbuddy/skills/
 ├── README.md
 ├── netlify.toml                # Netlify 部署配置（必须在仓库根目录）
 ├── app/                        # 网页应用（把 Skill 包成网站）
-│   ├── core.mjs                # 抽卡核心逻辑（两种部署方式共用）
+│   ├── core.mjs                # 抽卡核心逻辑（三种部署方式共用）
 │   ├── server.js               # 自托管入口：零依赖单端口服务
 │   ├── README.md               # 运行与配置文档
 │   ├── DEPLOY-NETLIFY.md       # Netlify 部署指南
 │   ├── prompt-skill.md         # 抽卡规则（自托管版用），由 SKILL.md 同步
 │   ├── prompt-bundle.mjs       # 抽卡规则（Netlify 版用），同一来源
 │   ├── prompt-output-contract.md  # JSON 输出契约（Skill 与 App 之间唯一的适配层）
-│   ├── sync-prompt.mjs         # SKILL.md → prompt-skill.md + prompt-bundle.mjs
+│   ├── sync-prompt.mjs         # SKILL.md → prompt-skill.md + prompt-bundle.mjs + public/ 副本
 │   ├── doctor.mjs              # 一键诊断：逐环检查并指出断裂点
 │   ├── netlify/functions/api.mjs  # Netlify 无服务器函数入口
-│   ├── test-*.mjs              # 冒烟 + 端到端 + 容错单测 + 压测 + Netlify 校验
+│   ├── test-*.mjs              # 冒烟 + 端到端 + 容错单测 + 压测 + Netlify + 静态托管校验
 │   ├── mock-model.mjs          # 假模型服务（不想花额度时用）
 │   ├── .env.example            # 配置模板（复制为 .env 使用）
 │   ├── package.json            # 无任何依赖，仅定义脚本
 │   └── public/                 # 前端：原生 HTML/CSS/JS（仅暴露此目录）
-│       ├── index.html
+│       ├── index.html          # 页面（引用同级资源，相对路径）
 │       ├── style.css
-│       └── app.js
+│       ├── app.js              # 双模式：有服务端走接口，无服务端浏览器直连
+│       ├── core.mjs            # 浏览器直连模式的抽卡逻辑副本
+│       ├── prompt-skill.md     # 浏览器直连模式的规则副本
+│       └── prompt-output-contract.md  # 浏览器直连模式的契约副本
 ├── skills/
 │   └── make-knowledge-cards/
 │       ├── SKILL.md            # Skill 主体：触发条件、工作流、质量红线、输出格式

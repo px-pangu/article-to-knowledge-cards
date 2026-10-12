@@ -1,32 +1,56 @@
 # 文章转知识卡片 · 网页应用
 
 把 [make-knowledge-cards](../skills/make-knowledge-cards/) Skill 包成的一个网页应用，
-支持**两种部署方式**：自托管（Node 单端口）或 Netlify（无服务器函数）。
+支持**三种部署方式**：自托管（Node 单端口）、Netlify（无服务器函数）、
+纯静态托管（GitHub Pages / 任意静态空间，浏览器直连模型）。
 
-粘贴一篇文章，服务端把文章连同 `SKILL.md` 一起发给大模型，返回结构化的 5-8 张知识卡片，
+粘贴一篇文章，把文章连同 `SKILL.md` 一起发给大模型，返回结构化的 5-8 张知识卡片，
 前端渲染成卡片并支持复制 / 下载 Markdown。
 
 **零依赖**：只用 Node 内置模块，不需要 `npm install`，不需要数据库，不写任何文件到磁盘。
 
 > **部署到 Netlify？** 见 [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md)。
-> 注意：Netlify 是静态托管，**直接上传 `public/` 目录会导致抽卡接口 404**
-> —— 必须走 Functions，该文档有完整步骤。
+> 走 Functions（服务端代调模型，密钥不暴露）；如果只是把 `public/` 拖拽上传，
+> 页面会自动进入「浏览器直连模式」，也能用 —— 详见下表第三列。
 
 ---
 
-## 两种部署方式
+## 三种部署方式
 
-| | 自托管（推荐） | Netlify Functions |
-|---|---|---|
-| 入口 | `server.js` | `netlify/functions/api.mjs` |
-| 运行方式 | Node 常驻进程 | 无服务器函数 |
-| 执行时限 | 无 | 免费版 10 秒 / Pro 26 秒 |
-| 适合 | 自有服务器、长文章、大流量、接本地模型 | 快速上线、演示、轻量使用 |
-| 核心逻辑 | 共用 `core.mjs` | 共用 `core.mjs` |
-| 抽卡规则 | 共用 SKILL.md | 共用 SKILL.md |
+| | 自托管（推荐） | Netlify Functions | 纯静态托管 |
+|---|---|---|---|
+| 入口 | `server.js` | `netlify/functions/api.mjs` | 上传 `public/` 目录 |
+| 运行方式 | Node 常驻进程 | 无服务器函数 | 无后端，浏览器直连模型 |
+| 执行时限 | 无 | 免费版 10 秒 / Pro 26 秒 | 无（受模型接口本身限制） |
+| API Key | 存服务端 `.env` | 存 Netlify 环境变量 | 存**用户浏览器** localStorage |
+| 密钥暴露面 | 无（最安全） | 无 | 无（不进代码不上传，但浏览器里可见） |
+| 适合 | 自有服务器、长文章、大流量、接本地模型 | 快速上线、多人使用 | 自己用、不想管服务器 |
+| 核心逻辑 | 共用 `core.mjs` | 共用 `core.mjs` | 共用 `core.mjs`（`public/core.mjs`） |
+| 抽卡规则 | 共用 SKILL.md | 共用 SKILL.md | 共用 SKILL.md |
 
-两种方式**接口路径完全一致**（`/api/cards`、`/api/health`），
-前端代码不需要为部署方式做任何分支判断。
+前两种方式**接口路径完全一致**（`/api/cards`、`/api/health`）。
+
+第三种方式：前端启动时探测 `./api/health`，探测不到服务端就自动切换为
+「浏览器直连模式」—— 打开「模型配置」面板填自己的接口地址、模型名与 API Key
+（保存在本机浏览器），抽卡请求由浏览器直接发往模型接口，**不经过任何中间服务器**。
+DeepSeek 与 OpenAI 的接口均允许浏览器直连（CORS 已验证）。
+
+### 纯静态托管怎么传
+
+把 `public/` 目录里的**全部 6 个文件**上传到静态空间的根目录（或任一子目录）：
+
+```
+public/
+├── index.html                # 页面
+├── style.css                 # 样式
+├── app.js                     # 前端逻辑（双模式）
+├── core.mjs                   # 抽卡核心逻辑（浏览器直连用）
+├── prompt-skill.md            # 抽卡规则（浏览器直连用）
+└── prompt-output-contract.md  # JSON 输出契约（浏览器直连用）
+```
+
+这些文件**必须同级**（前端用相对路径 `./` 引用，子目录部署也不会 404）。
+上传后打开页面，状态栏显示「浏览器直连 · 模型名」即部署成功。
 
 ---
 
@@ -42,6 +66,9 @@ skills/make-knowledge-cards/SKILL.md   ← 唯一的规则文件（Skill 与 App
 app/prompt-skill.md                   ← 同步产物（自托管版启动时读入内存）
 app/prompt-bundle.mjs                 ← 同步产物（Netlify 版打包时 import）
 app/prompt-output-contract.md         ← 把「输出 Markdown」改成「输出 JSON」
+app/public/core.mjs                   ← 副本（浏览器直连模式 import 的抽卡逻辑）
+app/public/prompt-skill.md            ← 副本（浏览器直连模式 fetch 的抽卡规则）
+app/public/prompt-output-contract.md   ← 副本（浏览器直连模式 fetch 的输出契约）
 ```
 
 因此：**改抽卡规则只需改 SKILL.md**，然后跑一次同步脚本、重启服务（或重新部署），
@@ -88,7 +115,12 @@ node server.js
 
 打开 `http://127.0.0.1:8787`。
 
-Windows 下也可以直接双击 **`start.bat`** —— 它会自动同步规则、启动服务，并在浏览器打开页面。
+Windows 下也可以直接双击 **`start.bat`** —— 它会自动找到 Node、同步规则、启动服务，
+并在服务真正就绪后自动打开浏览器。再双击一次也不会启动第二个服务：端口被占用时
+会识别出「已经在运行」，直接帮你把页面打开。
+
+> **想更省事**：把 `start.bat` 右键 →「发送到」→「桌面快捷方式」，以后双击桌面图标即可。
+> 图标可用 `icon.ico`。
 
 ### 出问题了先跑诊断
 
@@ -318,9 +350,12 @@ node test-stress-check.mjs http://127.0.0.1:8787 8
 # Netlify 部署校验：打包完整性 + 函数行为（部署前跑，会消耗额度）
 export LLM_BASE_URL=https://api.deepseek.com/v1 LLM_API_KEY=sk-xxxx
 node test-netlify.mjs
+
+# 纯静态托管校验：同级资源 + 相对路径 + 自动切换浏览器直连 + 真实抽卡（会消耗额度）
+node test-static-check.mjs
 ```
 
-也可以用 npm 简称（在 `app/` 目录下）：`npm run doctor` / `smoke` / `e2e` / `test:json` / `stress` / `netlify`。
+也可以用 npm 简称（在 `app/` 目录下）：`npm run doctor` / `smoke` / `e2e` / `test:json` / `stress` / `netlify` / `static`。
 
 **遇到问题先跑 `doctor.mjs`** —— 它会在第一处断裂点停下并给出修复命令。
 
@@ -372,14 +407,15 @@ node test-e2e-check.mjs http://127.0.0.1:8788        # 终端 C
 
 ```
 app/
-├── core.mjs                   # 抽卡核心逻辑（两种部署方式共用）
+├── core.mjs                   # 抽卡核心逻辑（三种部署方式共用）
 ├── server.js                  # 自托管入口：静态托管 + /api/cards + /api/health
 ├── prompt-skill.md            # 抽卡规则，由 SKILL.md 同步而来，勿手改
 ├── prompt-bundle.mjs          # 同上内容，供 Netlify 打包 import，勿手改
 ├── prompt-output-contract.md  # JSON 输出契约（唯一的适配层）
-├── sync-prompt.mjs            # SKILL.md → prompt-skill.md + prompt-bundle.mjs
+├── sync-prompt.mjs            # SKILL.md → prompt-skill.md + prompt-bundle.mjs + public/ 副本
 ├── doctor.mjs                 # 一键诊断：逐环检查并指出断裂点
 ├── DEPLOY-NETLIFY.md          # Netlify 部署指南
+├── icon.ico                   # 应用图标（多尺寸，桌面快捷方式用）
 ├── netlify/
 │   └── functions/
 │       └── api.mjs            # Netlify 无服务器函数入口
@@ -388,14 +424,18 @@ app/
 ├── test-repair-json.mjs       # JSON 容错修复单元测试（17 项）
 ├── test-stress-check.mjs      # 真机压测：多轮抽卡，统计成功率与重试
 ├── test-netlify.mjs           # Netlify 打包完整性 + 函数行为校验（19 项）
+├── test-static-check.mjs      # 纯静态托管校验（22 项）
 ├── mock-model.mjs             # 假模型服务
 ├── package.json               # 零依赖，仅定义脚本
-├── start.bat                  # Windows 一键启动
+├── start.bat                  # Windows 一键启动（自动定位 Node、开浏览器）
 ├── .env.example               # 配置模板（复制为 .env 使用）
-└── public/                    # 前端（原生 HTML/CSS/JS，无构建步骤）
+└── public/                    # 上传静态托管时把整个目录传上去（6 个文件同级）
     ├── index.html
     ├── style.css
-    └── app.js
+    ├── app.js                 # 双模式前端（服务端 / 浏览器直连）
+    ├── core.mjs               # 抽卡逻辑副本（浏览器直连用）
+    ├── prompt-skill.md        # 抽卡规则副本（浏览器直连用）
+    └── prompt-output-contract.md
 ```
 
 **结构约定**：除前端三件套在 `public/` 里，其余文件**全部平铺在 `app/` 根目录**，

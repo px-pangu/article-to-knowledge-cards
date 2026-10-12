@@ -1,11 +1,12 @@
 /**
  * 抽卡核心逻辑 —— 与运行环境无关的纯模块。
  *
- * 被两处复用，保证「同一份逻辑」：
+ * 被三处复用，保证「同一份逻辑」：
  *   1) server.js            —— 自托管单端口服务（node server.js）
  *   2) netlify/functions/api.mjs —— Netlify Functions 无服务器部署
+ *   3) public/app.js        —— 纯静态托管的浏览器直连模式（import ./core.mjs）
  *
- * 本模块不碰 HTTP、不读文件系统（提示词由调用方传入），只做：
+ * 本模块不碰 HTTP 服务、不读文件系统（提示词由调用方传入），只做：
  *   提示词拼装 → 调用模型 → 解析 JSON → 结构校验
  *
  * 注意：抽卡的「规则」不在这里，而在 prompt-skill.md（由 SKILL.md 同步而来）。
@@ -171,7 +172,8 @@ export function normalizeResult(raw) {
 
 /**
  * 调用 OpenAI 兼容接口。
- * @param {object} cfg   { baseUrl, apiKey, model, timeoutMs, jsonMode }
+ * @param {object} cfg   { baseUrl, apiKey, model, timeoutMs, jsonMode, signal }
+ *                       signal 为可选的 AbortSignal，用于调用方主动取消（浏览器直连模式）。
  * @param {string} systemPrompt
  * @param {string} userText
  * @param {number} temperature
@@ -194,6 +196,16 @@ export async function callModel(cfg, systemPrompt, userText, temperature) {
   const controller = new AbortController();
   const timeoutMs = cfg.timeoutMs || 180000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // 外部取消（浏览器直连模式的「取消」按钮）：
+  // 外部信号触发时连带中断内部 fetch，且与超时互相独立
+  const external = cfg.signal || null;
+  if (external) {
+    if (external.aborted) {
+      clearTimeout(timer);
+      throw new Error("已取消本次请求。");
+    }
+    external.addEventListener("abort", () => controller.abort(), { once: true });
+  }
   let res;
   try {
     res = await fetch(`${cfg.baseUrl}/chat/completions`, {
@@ -208,6 +220,7 @@ export async function callModel(cfg, systemPrompt, userText, temperature) {
   } catch (err) {
     clearTimeout(timer);
     if (err.name === "AbortError") {
+      if (external && external.aborted) throw new Error("已取消本次请求。");
       throw new Error(`调用模型超时（超过 ${Math.round(timeoutMs / 1000)} 秒）。`);
     }
     throw new Error(`无法连接模型接口：${err.message}`);
