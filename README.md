@@ -24,8 +24,9 @@
 - **保留限定条件**：原文的"往往""可能""样本偏小"等限定会随结论一起保留
 - **覆盖说明**：结尾说明哪些内容因何种原因未被成卡
 
-**能力边界（暂不支持）**：网页抓取（URL）、PDF / 图片 / Office 文档、Anki 导出与 `.apkg`
-牌组打包、图形界面。输入仅限纯文本——直接粘贴的正文，或本地 `.md` / `.txt` 文件。
+**Skill 的能力边界（暂不支持）**：网页抓取（URL）、PDF / 图片 / Office 文档、Anki 导出与
+`.apkg` 牌组打包、图形界面。作为对话里的 Skill，它只吃纯文本——直接粘贴的正文，
+或本地 `.md` / `.txt` 文件。遇到不支持的输入，它不会硬猜内容，而是说明限制并给出替代路径。
 
 > **关于图形界面**：Skill 本身不提供界面，只在对话中输出 Markdown。
 > 若需要网页界面，本仓库另附一个网页应用（[`app/`](app/)）——
@@ -33,7 +34,11 @@
 > 支持三种部署方式：**自托管**（`node server.js`）、**Netlify Functions**
 > （见 [app/DEPLOY-NETLIFY.md](app/DEPLOY-NETLIFY.md)）或**纯静态托管**
 > （上传 `app/public/` 目录，浏览器直连模型，无需任何后端）。
-> 该应用仍不支持网页抓取、PDF 与 Anki 导出。
+>
+> 网页应用的输入比 Skill 宽：除粘贴正文外，还能上传 `.md` / `.txt` / `.csv` / `.docx` /
+> `.xlsx` / `.pdf`，并在有服务端时按网页链接取正文 —— 这些都先在浏览器或服务端转成纯文本，
+> 再交给同一套规则。仍然**不做 OCR**（图片与扫描版 PDF）、不支持旧版 `.doc` / `.xls`，
+> 也不做 Anki 导出。
 
 ## 3. 安装方法
 
@@ -207,6 +212,8 @@ cp -r skills/make-knowledge-cards ~/.workbuddy/skills/
 ├── netlify.toml                # Netlify 部署配置（必须在仓库根目录）
 ├── app/                        # 网页应用（把 Skill 包成网站）
 │   ├── core.mjs                # 抽卡核心逻辑（三种部署方式共用）
+│   ├── extract.mjs             # 文件抽取：PDF / Word / Excel → 文本（浏览器端，零依赖）
+│   ├── fetch-url.mjs           # 网页抓取（服务端用，自托管与 Netlify 共用）
 │   ├── server.js               # 自托管入口：零依赖单端口服务
 │   ├── README.md               # 运行与配置文档
 │   ├── DEPLOY-NETLIFY.md       # Netlify 部署指南
@@ -216,7 +223,7 @@ cp -r skills/make-knowledge-cards ~/.workbuddy/skills/
 │   ├── sync-prompt.mjs         # SKILL.md → prompt-skill.md + prompt-bundle.mjs + public/ 副本
 │   ├── doctor.mjs              # 一键诊断：逐环检查并指出断裂点
 │   ├── netlify/functions/api.mjs  # Netlify 无服务器函数入口
-│   ├── test-*.mjs              # 冒烟 + 端到端 + 容错单测 + 压测 + Netlify + 静态托管校验
+│   ├── test-*.mjs              # 冒烟 + 端到端 + 容错单测 + 抽取单测 + 压测 + Netlify + 静态托管校验
 │   ├── mock-model.mjs          # 假模型服务（不想花额度时用）
 │   ├── .env.example            # 配置模板（复制为 .env 使用）
 │   ├── package.json            # 无任何依赖，仅定义脚本
@@ -225,6 +232,7 @@ cp -r skills/make-knowledge-cards ~/.workbuddy/skills/
 │       ├── style.css
 │       ├── app.js              # 双模式：有服务端走接口，无服务端浏览器直连
 │       ├── core.mjs            # 浏览器直连模式的抽卡逻辑副本
+│       ├── extract.mjs         # 浏览器端的文件抽取逻辑副本
 │       ├── prompt-skill.md     # 浏览器直连模式的规则副本
 │       └── prompt-output-contract.md  # 浏览器直连模式的契约副本
 ├── skills/
@@ -280,6 +288,9 @@ python <skill-creator>/scripts/quick_validate.py skills/make-knowledge-cards
 信息不足的短文本输出 2 张（未凑数）。
 ## 设计取舍
 
+- **文件解析放在浏览器端**：PDF / Word / Excel 转成文本这件事，放服务端就得引入解析库
+  （违背零依赖），放浏览器里则服务端保持零依赖、文章也不必上传到服务器，
+  纯静态托管模式同样能用。代价是 PDF 需要联网加载 pdf.js，以及不做 OCR。
 - **零脚本**：整个 Skill 由规则和示例驱动，不引入 `scripts/`。
   卡片质量取决于语义判断，写成脚本反而会退化成机械分句。
 - **规则写在 SKILL.md 里**：工作流分 7 步，配合 8 条质量红线表。

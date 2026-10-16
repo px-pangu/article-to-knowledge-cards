@@ -121,6 +121,8 @@ async function main() {
       ["public/app.js", "前端脚本"],
       ["server.js", "服务端主程序"],
       ["core.mjs", "抽卡核心逻辑"],
+      ["extract.mjs", "文件抽取逻辑（PDF / Word / Excel → 文本）"],
+      ["fetch-url.mjs", "网页抓取逻辑"],
       ["prompt-skill.md", "抽卡规则（由 SKILL.md 同步）"],
       ["prompt-output-contract.md", "JSON 输出契约"],
     ];
@@ -185,8 +187,8 @@ async function main() {
     }
 
     // 纯静态托管（浏览器直连模式）的前端依赖（可选，缺失时只提示）
-    // 前端探测不到 /api 时会自动切换为浏览器直连，此时需要这三个文件与 index.html 同级
-    const staticDeps = ["core.mjs", "prompt-skill.md", "prompt-output-contract.md"].filter(
+    // 前端探测不到 /api 时会自动切换为浏览器直连，此时需要这几个文件与 index.html 同级
+    const staticDeps = ["core.mjs", "extract.mjs", "prompt-skill.md", "prompt-output-contract.md"].filter(
       (f) => !fs.existsSync(path.join(publicDir, f))
     );
     if (staticDeps.length) {
@@ -195,6 +197,23 @@ async function main() {
           "纯静态部署（GitHub Pages 等）的浏览器直连模式需要它们与 index.html 同级，" +
           "修复：node sync-prompt.mjs（自托管模式不受影响）"
       );
+    } else {
+      // 副本必须与源文件逐字一致：改了 extract.mjs / core.mjs 却忘了同步，
+      // 静态托管模式下会出现「本地能用、线上报错」这种极难排查的问题
+      const stale = ["core.mjs", "extract.mjs"].filter((f) => {
+        const src = path.join(APP_DIR, f);
+        const copy = path.join(publicDir, f);
+        if (!fs.existsSync(src) || !fs.existsSync(copy)) return false;
+        return !fs.readFileSync(src).equals(fs.readFileSync(copy));
+      });
+      if (stale.length) {
+        warn(
+          `public/ 里的 ${stale.join("、")} 与源文件不一致 —— 改过代码后忘了同步，` +
+            "修复：node sync-prompt.mjs"
+        );
+      } else {
+        ok("public/ 副本与源文件一致（core.mjs、extract.mjs）");
+      }
     }
   }
 

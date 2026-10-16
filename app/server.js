@@ -57,6 +57,9 @@ const config = {
   maxInputChars: Number(process.env.MAX_INPUT_CHARS || 60000),
   maxBodyBytes: Number(process.env.MAX_BODY_BYTES || 1048576),
   timeoutMs: Number(process.env.LLM_TIMEOUT_MS || 180000),
+  fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS || 15000),
+  // 默认拒绝抓取内网地址（防 SSRF）。本地测试想抓 127.0.0.1 时才开这个开关。
+  allowPrivateFetch: process.env.ALLOW_PRIVATE_FETCH === "1",
   jsonMode: process.env.LLM_JSON_MODE === "1",
   dryRun: process.env.DRY_RUN === "1",
 };
@@ -73,6 +76,15 @@ function loadCore() {
     corePromise = import(pathToFileURL(path.join(ROOT, "core.mjs")).href);
   }
   return corePromise;
+}
+
+// 网页抓取逻辑同样只有一份（fetch-url.mjs），与 Netlify 版共用
+let fetchUrlPromise = null;
+function loadFetchUrl() {
+  if (!fetchUrlPromise) {
+    fetchUrlPromise = import(pathToFileURL(path.join(ROOT, "fetch-url.mjs")).href);
+  }
+  return fetchUrlPromise;
 }
 
 const promptFiles = {
@@ -284,6 +296,39 @@ async function handleCards(req, res) {
   }
 }
 
+/**
+ * 网页抓取：把链接交给服务端取正文，前端拿到纯文本后再走抽卡。
+ * 必须放在服务端 —— 浏览器直连抓网页会被 CORS 拦下。
+ */
+async function handleFetch(req, res) {
+  if (!authorized(req)) {
+    sendJson(res, 401, { ok: false, error: "访问口令不正确。" });
+    return;
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(await readBody(req));
+  } catch (err) {
+    sendJson(res, 400, { ok: false, error: `请求体解析失败：${err.message}` });
+    return;
+  }
+
+  try {
+    const mod = await loadFetchUrl();
+    const data = await mod.fetchUrlText(payload.url, {
+      timeoutMs: config.fetchTimeoutMs,
+      maxChars: config.maxInputChars,
+      allowPrivate: config.allowPrivateFetch,
+    });
+    sendJson(res, 200, { ok: true, data });
+  } catch (err) {
+    // 用户输入类问题给 400，网络/目标站点问题给 502，便于前端区分提示
+    const isUserError = /链接|无效|只支持|不是网页|没有抓到|正文|解析|拒绝抓取/.test(err.message);
+    sendJson(res, isUserError ? 400 : 502, { ok: false, error: `${err.message}` });
+  }
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const pathname = url.pathname;
@@ -298,6 +343,16 @@ const server = http.createServer((req, res) => {
       maxInputChars: config.maxInputChars,
       tokenRequired: Boolean(config.appToken),
       uptimeSec: Math.round(process.uptime()),
+      // 前端据此判断「网页链接」功能是否可用（纯静态托管没有服务端，用不了）
+      urlFetch: true,
+    });
+    return;
+  }
+
+  if (pathname === "/api/fetch" && req.method === "POST") {
+    handleFetch(req, res).catch((err) => {
+      console.error(`[未捕获错误] ${err.stack || err.message}`);
+      if (!res.headersSent) sendJson(res, 500, { ok: false, error: "服务内部错误。" });
     });
     return;
   }

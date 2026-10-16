@@ -41,11 +41,18 @@
         </button>
         <button type="button" class="btn btn-ghost" id="clearBtn">清空</button>
       </div>
-      <input type="file" id="fileInput" accept=".md,.markdown,.txt,.text" hidden>
+      <input type="file" id="fileInput" accept=".md,.markdown,.txt,.text,.csv,.docx,.xlsx,.pdf" hidden>
     </div>
 
+    <div class="url-row">
+      <input type="url" id="urlInput" spellcheck="false" autocomplete="off"
+        placeholder="粘贴网页链接，点「抓取」自动取正文（需要有服务端）">
+      <button type="button" class="btn btn-ghost" id="urlFetchBtn">抓取</button>
+    </div>
+    <p class="url-hint muted" id="urlHint"></p>
+
     <textarea id="textInput" spellcheck="false"
-      placeholder="把文章正文粘贴到这里……&#10;&#10;支持纯文本，也可以是本地 .md / .txt 文件（点上方「上传文件」）。&#10;网页链接、PDF、图片不支持，请先转成纯文本。"></textarea>
+      placeholder="把文章正文粘贴到这里……&#10;&#10;也可以点上方「上传文件」：支持 .md / .txt / .csv / .docx / .xlsx / .pdf。&#10;不支持：图片、扫描版 PDF（不做 OCR）、旧版 .doc / .xls。"></textarea>
 
     <div class="input-meta">
       <span id="charCount">0 字</span>
@@ -113,7 +120,7 @@
 
 <footer class="site-footer">
   <p>抽卡规则来自开源 Skill <span class="mono">make-knowledge-cards</span>，模型按 SKILL.md 中的规则工作。</p>
-  <p class="muted">不支持网页抓取、PDF、图片与 Anki 导出。文章内容仅用于本次请求，不落盘、不留存。</p>
+  <p class="muted">支持粘贴正文、上传 .md / .txt / .csv / .docx / .xlsx / .pdf，以及网页链接；不支持图片与扫描版 PDF（不做 OCR）、旧版 .doc / .xls，也不做 Anki 导出。文章内容仅用于本次请求，不落盘、不留存。</p>
 </footer>
 
 <div class="toast" id="toast" hidden></div>

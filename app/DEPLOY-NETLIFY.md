@@ -89,8 +89,9 @@ app/test-netlify.mjs                  ← 本地校验脚本
 |---|---|---|
 | `LLM_MODEL` | `deepseek-chat` | 模型名 |
 | `LLM_JSON_MODE` | `1` | 是否要求模型输出 JSON |
-| `MAX_INPUT_CHARS` | `60000` | 文章字数上限 |
+| `MAX_INPUT_CHARS` | `60000` | 文章字数上限（网页抓取的正文也会截断到这里） |
 | `ATTEMPT_BUDGET_MS` | `8000` | 全部重试的时间预算（见下方限制说明） |
+| `FETCH_TIMEOUT_MS` | `8000` | 抓取单个网页的超时。要注意它和抽卡共用同一个 10 秒执行预算 |
 
 **密钥安全性**：`LLM_API_KEY` 只存在 Netlify 服务端，浏览器拿不到，
 也不会出现在前端代码或构建产物里。这一点与自托管版本完全一致。
@@ -198,6 +199,7 @@ node test-netlify.mjs
 | 部署日志报 `Cannot find module` | base 设成了 `app/` | base 改为留空（仓库根） |
 | `/api/health` 说 `mode: unconfigured` | 没配 `LLM_API_KEY` | 在环境变量里添加后重新部署 |
 | 抽卡 504 超时 | 文章过长或触发重试超时限 | 分段处理，或改用自托管版本 |
+| 抓取网页链接 504 | 目标站点响应慢，占了 10 秒预算 | 调低 `FETCH_TIMEOUT_MS`，或改用自托管版本 |
 | 改了 SKILL.md 但规则没生效 | 忘了同步 | `node sync-prompt.mjs` 后重新部署 |
 
 改动规则后**必须**重新部署（Netlify 不会自动感知 SKILL.md 的变化）。

@@ -7,7 +7,11 @@
 粘贴一篇文章，把文章连同 `SKILL.md` 一起发给大模型，返回结构化的 5-8 张知识卡片，
 前端渲染成卡片并支持复制 / 下载 Markdown。
 
+除了粘贴正文，还可以**直接上传 `.md` / `.txt` / `.csv` / `.docx` / `.xlsx` / `.pdf`**，
+或**粘贴网页链接**自动取正文 —— 都会先转成纯文本，再走同一套抽卡规则。
+
 **零依赖**：只用 Node 内置模块，不需要 `npm install`，不需要数据库，不写任何文件到磁盘。
+文件解析在浏览器里完成（PDF 除外，它按需从 CDN 加载 pdf.js），服务端因此不必装任何解析库。
 
 > **部署到 Netlify？** 见 [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md)。
 > 走 Functions（服务端代调模型，密钥不暴露）；如果只是把 `public/` 拖拽上传，
@@ -27,8 +31,10 @@
 | 适合 | 自有服务器、长文章、大流量、接本地模型 | 快速上线、多人使用 | 自己用、不想管服务器 |
 | 核心逻辑 | 共用 `core.mjs` | 共用 `core.mjs` | 共用 `core.mjs`（`public/core.mjs`） |
 | 抽卡规则 | 共用 SKILL.md | 共用 SKILL.md | 共用 SKILL.md |
+| 上传 PDF / Word / Excel | ✅ | ✅ | ✅（解析在浏览器里做） |
+| 网页链接取正文 | ✅ | ✅（要挤进 10 秒预算，易超时） | ❌ 浏览器跨域被拦 |
 
-前两种方式**接口路径完全一致**（`/api/cards`、`/api/health`）。
+前两种方式**接口路径完全一致**（`/api/health`、`/api/fetch`、`/api/cards`）。
 
 第三种方式：前端启动时探测 `./api/health`，探测不到服务端就自动切换为
 「浏览器直连模式」—— 打开「模型配置」面板填自己的接口地址、模型名与 API Key
@@ -37,7 +43,7 @@ DeepSeek 与 OpenAI 的接口均允许浏览器直连（CORS 已验证）。
 
 ### 纯静态托管怎么传
 
-把 `public/` 目录里的**全部 6 个文件**上传到静态空间的根目录（或任一子目录）：
+把 `public/` 目录里的**全部 7 个文件**上传到静态空间的根目录（或任一子目录）：
 
 ```
 public/
@@ -45,12 +51,37 @@ public/
 ├── style.css                 # 样式
 ├── app.js                     # 前端逻辑（双模式）
 ├── core.mjs                   # 抽卡核心逻辑（浏览器直连用）
+├── extract.mjs                # 文件抽取逻辑（浏览器直连用，PDF/Word/Excel → 文本）
 ├── prompt-skill.md            # 抽卡规则（浏览器直连用）
 └── prompt-output-contract.md  # JSON 输出契约（浏览器直连用）
 ```
 
 这些文件**必须同级**（前端用相对路径 `./` 引用，子目录部署也不会 404）。
 上传后打开页面，状态栏显示「浏览器直连 · 模型名」即部署成功。
+
+---
+
+## 支持的输入
+
+| 输入方式 | 支持 | 说明 |
+| --- | --- | --- |
+| 直接粘贴正文 | ✅ | 最直接，也是质量最高的一条路径 |
+| `.md` `.markdown` `.txt` `.text` `.csv` | ✅ | 原样读入 |
+| `.docx`（Word） | ✅ | 浏览器内解析 zip + XML，取正文，不含页眉页脚 |
+| `.xlsx`（Excel） | ✅ | 读全部工作表，每行拼成「单元格 ｜ 单元格」 |
+| `.pdf` | ✅ | **需要联网**：首次解析从 CDN 加载 pdf.js（约 1 MB）。扫描件 / 纯图片 PDF 抽不出文字 |
+| 网页链接（http / https） | 仅服务端模式 | 由服务端抓取正文并去噪；纯静态模式没有服务端，浏览器会被跨域策略拦下 |
+| 图片、扫描版 PDF | ❌ | 不做 OCR（识别引擎体积大、中文识别率不稳定） |
+| 旧版 `.doc` / `.xls` | ❌ | 二进制格式，请先另存为 `.docx` / `.xlsx` |
+| Anki `.apkg` | ❌ | 不做牌组打包 |
+
+几条约定：
+
+- **文件上限 20 MB**；抽取出的文本超过 `MAX_INPUT_CHARS` 会自动截断，界面上会写明"已截断至 N 字"。
+- **文件解析发生在浏览器里**：服务端因此保持零依赖，纯静态托管模式同样能用，文章也不必上传到服务器。
+- **PDF 依赖 CDN**：离线环境请把 PDF 先另存为 `.txt` / `.md`；加载失败时页面会明确提示原因，而不是静默失败。
+- **网页抓取默认拒绝内网地址**（防 SSRF）。想在本机抓 `127.0.0.1` 上的页面做测试，才设 `ALLOW_PRIVATE_FETCH=1`。
+- 抽取文本会带噪声（页眉页脚、PDF 断行、表格行），`SKILL.md` 里有一节专门规定了模型该如何处理这些噪声。
 
 ---
 
@@ -67,6 +98,7 @@ app/prompt-skill.md                   ← 同步产物（自托管版启动时�
 app/prompt-bundle.mjs                 ← 同步产物（Netlify 版打包时 import）
 app/prompt-output-contract.md         ← 把「输出 Markdown」改成「输出 JSON」
 app/public/core.mjs                   ← 副本（浏览器直连模式 import 的抽卡逻辑）
+app/public/extract.mjs                ← 副本（浏览器端把 PDF/Word/Excel 转成文本的逻辑）
 app/public/prompt-skill.md            ← 副本（浏览器直连模式 fetch 的抽卡规则）
 app/public/prompt-output-contract.md   ← 副本（浏览器直连模式 fetch 的输出契约）
 ```
@@ -174,7 +206,9 @@ npm run dry-run
 | `LLM_API_KEY` | 空 | 模型密钥。留空时抽卡接口会明确报错 |
 | `LLM_JSON_MODE` | `0` | 设为 `1` 时传 `response_format=json_object`，可降低解析失败率 |
 | `LLM_TIMEOUT_MS` | `180000` | 单次调用超时（毫秒） |
-| `MAX_INPUT_CHARS` | `60000` | 单篇文章字数上限 |
+| `MAX_INPUT_CHARS` | `60000` | 单篇文章字数上限（抽取出的文本超过它会自动截断） |
+| `FETCH_TIMEOUT_MS` | `15000` | 抓取单个网页的超时（毫秒）。Netlify 版默认 `8000` |
+| `ALLOW_PRIVATE_FETCH` | `0` | 设为 `1` 才允许抓取内网地址。默认拒绝，防 SSRF |
 | `DRY_RUN` | `0` | 设为 `1` 进入演示模式 |
 
 ### 常见模型接口
@@ -338,11 +372,14 @@ node doctor.mjs
 # 冒烟检查：模拟浏览器完整链路，用真文章真实抽卡（会消耗模型额度）
 node test-smoke-check.mjs http://127.0.0.1:8787
 
-# 端到端校验：29 项接口行为（启用了 APP_TOKEN 时把口令作为第二个参数）
+# 端到端校验：35 项接口行为（启用了 APP_TOKEN 时把口令作为第二个参数）
 node test-e2e-check.mjs http://127.0.0.1:8787
 
 # JSON 容错修复的单元测试：17 项，含真实坏样本
 node test-repair-json.mjs
+
+# 文件抽取 + 网页抓取的单测：24 项（现场构造 docx/xlsx，零消耗）
+node test-extract.mjs
 
 # 真机压测：连续抽卡，统计成功率与自动重试次数（会消耗模型额度）
 node test-stress-check.mjs http://127.0.0.1:8787 8
@@ -355,7 +392,7 @@ node test-netlify.mjs
 node test-static-check.mjs
 ```
 
-也可以用 npm 简称（在 `app/` 目录下）：`npm run doctor` / `smoke` / `e2e` / `test:json` / `stress` / `netlify` / `static`。
+也可以用 npm 简称（在 `app/` 目录下）：`npm run doctor` / `smoke` / `e2e` / `test:json` / `test:extract` / `stress` / `netlify` / `static`。
 
 **遇到问题先跑 `doctor.mjs`** —— 它会在第一处断裂点停下并给出修复命令。
 
@@ -366,6 +403,7 @@ node test-static-check.mjs
 | `test-smoke-check.mjs` | 用户真实操作能走通吗？ | 是（真实抽卡 2 次） |
 | `test-e2e-check.mjs` | 接口行为都正确吗？ | 否（配合 mock 更是零消耗） |
 | `test-repair-json.mjs` | JSON 容错逻辑还对吗？ | 否 |
+| `test-extract.mjs` | PDF/Word/Excel/网页 的抽取还正常吗？ | 否 |
 | `test-netlify.mjs` | 部署到 Netlify 能跑起来吗？ | 是（真实抽卡 1 次） |
 
 `test-netlify.mjs` 专门检查**部署最容易失败的一环**：函数 `import` 的模块
@@ -373,6 +411,7 @@ node test-static-check.mjs
 以及提示词是否忘了同步。**部署前务必先跑它。**
 
 `test-e2e-check.mjs` 覆盖健康接口、静态资源、抽卡主流程、字段完整性、Markdown 导出、
+网页抓取接口的拒绝分支（非法链接 / 内网地址 / 只接受 POST）、
 错误处理（空输入 / 超长 / 路径穿越 / 错误方法）与口令拦截，全部通过时退出码为 0。
 
 `test-smoke-check.mjs` 是**最接近用户真实体验**的一项：它先确认首页和静态资源能加载，
@@ -408,7 +447,9 @@ node test-e2e-check.mjs http://127.0.0.1:8788        # 终端 C
 ```
 app/
 ├── core.mjs                   # 抽卡核心逻辑（三种部署方式共用）
-├── server.js                  # 自托管入口：静态托管 + /api/cards + /api/health
+├── extract.mjs                # 文件抽取：PDF / Word / Excel → 文本（浏览器端零依赖）
+├── fetch-url.mjs              # 网页抓取（服务端用，自托管与 Netlify 共用）
+├── server.js                  # 自托管入口：静态托管 + /api/health + /api/fetch + /api/cards
 ├── prompt-skill.md            # 抽卡规则，由 SKILL.md 同步而来，勿手改
 ├── prompt-bundle.mjs          # 同上内容，供 Netlify 打包 import，勿手改
 ├── prompt-output-contract.md  # JSON 输出契约（唯一的适配层）
@@ -420,20 +461,22 @@ app/
 │   └── functions/
 │       └── api.mjs            # Netlify 无服务器函数入口
 ├── test-smoke-check.mjs       # 冒烟：模拟浏览器完整链路（真实抽卡）
-├── test-e2e-check.mjs         # 端到端校验（29 项）
+├── test-e2e-check.mjs         # 端到端校验（35 项）
 ├── test-repair-json.mjs       # JSON 容错修复单元测试（17 项）
+├── test-extract.mjs           # 文件抽取 + 网页抓取单元测试（24 项，零消耗）
 ├── test-stress-check.mjs      # 真机压测：多轮抽卡，统计成功率与重试
 ├── test-netlify.mjs           # Netlify 打包完整性 + 函数行为校验（19 项）
-├── test-static-check.mjs      # 纯静态托管校验（22 项）
+├── test-static-check.mjs      # 纯静态托管校验（25 项）
 ├── mock-model.mjs             # 假模型服务
 ├── package.json               # 零依赖，仅定义脚本
 ├── start.bat                  # Windows 一键启动（自动定位 Node、开浏览器）
 ├── .env.example               # 配置模板（复制为 .env 使用）
-└── public/                    # 上传静态托管时把整个目录传上去（6 个文件同级）
+└── public/                    # 上传静态托管时把整个目录传上去（7 个文件同级）
     ├── index.html
     ├── style.css
     ├── app.js                 # 双模式前端（服务端 / 浏览器直连）
     ├── core.mjs               # 抽卡逻辑副本（浏览器直连用）
+    ├── extract.mjs            # 文件抽取逻辑副本（浏览器直连用）
     ├── prompt-skill.md        # 抽卡规则副本（浏览器直连用）
     └── prompt-output-contract.md
 ```
@@ -464,6 +507,32 @@ app/
   "uptimeSec": 42
 }
 ```
+
+### `POST /api/fetch`
+
+抓取网页正文（纯静态托管模式没有这个接口）：
+
+```json
+{ "url": "https://example.com/post" }
+```
+
+成功响应：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "url": "https://example.com/post",
+    "title": "文章标题",
+    "text": "正文纯文本……",
+    "chars": 4321,
+    "truncated": false
+  }
+}
+```
+
+失败时 `ok: false` 并给出中文原因：链接无效 / 非 http(s) / 目标不是网页 /
+页面没有正文（脚本渲染或需要登录）/ 抓取超时。**默认拒绝解析到内网地址的域名**。
 
 ### `POST /api/cards`
 
@@ -564,6 +633,16 @@ app/
 浏览器只在 HTTPS 或 localhost 下提供剪贴板接口。代码里已内置降级方案（`execCommand`），
 若仍失败，请按上面的步骤配好 HTTPS。
 
+**上传 PDF 后提示「PDF 解析库加载失败」**
+PDF 解析用的 pdf.js 从 `cdn.jsdelivr.net` 按需加载（约 1 MB，只在第一次解析 PDF 时下载）。
+先确认这台机器能访问该域名；确实不行就把 PDF 另存为 `.txt` / `.md` 再上传。
+若 PDF 本身是扫描件（内容其实是图片），本应用不做 OCR，会提示"没有抽到文字"。
+
+**填了网页链接，点「抓取」没反应**
+网页抓取必须由服务端代做 —— 浏览器直接抓会被跨域策略（CORS）拦下。
+纯静态托管模式下这个功能不可用，输入框会置灰并说明原因；请把正文复制粘贴进来。
+服务端模式下仍失败时，把鼠标停在按钮上可看到具体原因（超时 / 目标不是网页 / 页面无正文）。
+
 **会不会把我的文章存下来**
 不会。服务不写数据库、不落盘、不记录请求内容，请求处理完即释放。
 唯一的出网请求是发往你自己配置的 `LLM_BASE_URL`。若用本地 Ollama，数据完全不出机器。
@@ -572,7 +651,11 @@ app/
 
 ## 已知限制
 
-- 不支持网页抓取、PDF、图片、Office 文档 —— 只能输入纯文本（粘贴或 .md / .txt）
+- **PDF 需要联网**：解析库 pdf.js 在首次使用时从 CDN 加载。完全离线的环境只能先把它转成文本再上传
+- **不做 OCR**：图片与扫描版 PDF 抽不出文字时会明确报错，不会假装成功
+- **网页链接只在有服务端时可用**：纯静态托管没有服务端，浏览器抓取会被跨域策略拦下；
+  且脚本动态渲染、需要登录的页面也抓不到正文
+- **旧版 `.doc` / `.xls` 不支持**：二进制格式，请先另存为 `.docx` / `.xlsx`
 - 不支持 Anki `.apkg` 导出（卡片 JSON 转 `.apkg` 是纯脚本活，可另行添加）
 - 无用户系统、无历史记录、无并发限流。若对外公开使用，建议在反代层加限流
 - 单次请求非流式，长时间等待期间页面只显示已用时；如需逐字返回可改用 SSE

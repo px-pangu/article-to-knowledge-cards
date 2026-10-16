@@ -15,6 +15,7 @@
  */
 
 import { buildSystemPrompt, generateCards } from "./core.mjs";
+import { extractFile } from "./extract.mjs";
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,6 +28,9 @@ const els = {
   textInput: $("textInput"),
   charCount: $("charCount"),
   fileHint: $("fileHint"),
+  urlInput: $("urlInput"),
+  urlFetchBtn: $("urlFetchBtn"),
+  urlHint: $("urlHint"),
   tokenBox: $("tokenBox"),
   tokenInput: $("tokenInput"),
   localCfgBox: $("localCfgBox"),
@@ -64,6 +68,7 @@ let state = {
   timer: null,
   maxInputChars: 60000,
   cancelBtn: null,
+  urlFetch: false, // 网页抓取需要服务端，纯静态托管下为 false
 };
 
 /* ---------- 工具 ---------- */
@@ -85,6 +90,21 @@ function setError(message) {
   }
   els.errorBox.textContent = message;
   els.errorBox.hidden = false;
+}
+
+/* 网页抓取必须有服务端：浏览器直连抓网页会被 CORS 拦下 */
+const URL_NO_SERVER_REASON =
+  "浏览器直连模式没有服务端，网页抓取会被跨域策略（CORS）拦下。请手动复制正文粘贴到这里。";
+
+function setUrlSupported(supported, reason) {
+  state.urlFetch = supported;
+  els.urlInput.disabled = !supported;
+  els.urlFetchBtn.disabled = !supported;
+  els.urlHint.classList.toggle("err", false);
+  els.urlHint.textContent = supported ? "" : reason || "";
+  const tip = supported ? "由服务端抓取该网页的正文，再送入抽卡" : reason || "";
+  els.urlInput.title = tip;
+  els.urlFetchBtn.title = tip;
 }
 
 function updateCharCount() {
@@ -115,6 +135,10 @@ async function checkHealth() {
 
     state.mode = "server";
     state.maxInputChars = health.maxInputChars || 60000;
+    setUrlSupported(
+      health.urlFetch !== false,
+      "该服务端没有开启网页抓取（缺少 /api/fetch），请升级到本版本后重启。"
+    );
 
     if (health.mode === "dry-run") {
       els.statusDot.className = "status-dot demo";
@@ -164,6 +188,7 @@ function enterLocalMode() {
   state.mode = "local";
   state.maxInputChars = 60000;
   els.localCfgBox.hidden = false;
+  setUrlSupported(false, URL_NO_SERVER_REASON);
 
   const cfg = loadLocalCfg();
   els.cfgBaseUrl.value = cfg.baseUrl || "";
@@ -196,22 +221,93 @@ function refreshLocalStatus(cfg) {
 
 /* ---------- 输入 ---------- */
 
-function readFile(file) {
-  if (file.size > 1024 * 1024) {
-    setError("文件超过 1 MB，请先裁剪后再上传。");
+function lockFileHint() {
+  els.fileHint.dataset.locked = "1";
+}
+
+/**
+ * 上传文件 → 在浏览器里抽成纯文本 → 填进输入框。
+ * 解析放在浏览器端，是为了让纯静态托管（无服务端）模式同样能用，
+ * 也让服务端保持零依赖。PDF 首次解析会从 CDN 拉 pdf.js。
+ */
+async function loadFile(file) {
+  setError("");
+  lockFileHint();
+  els.fileHint.textContent = `正在解析 ${file.name}…`;
+  try {
+    const result = await extractFile(file, { maxChars: state.maxInputChars });
+    els.textInput.value = result.text;
+    const bits = [result.kind, result.detail, `${result.chars} 字`].filter(Boolean);
+    if (result.truncated) bits.push(`已截断至 ${state.maxInputChars} 字`);
+    els.fileHint.textContent = `已载入 ${result.name}　${bits.join(" · ")}`;
+    updateCharCount();
+    saveDraft();
+    showToast(`${result.kind} 文本已载入`);
+  } catch (err) {
+    delete els.fileHint.dataset.locked;
+    els.fileHint.textContent = "";
+    setError(err.message || "文件解析失败。");
+  }
+}
+
+/** 网页链接 → 服务端抓取正文 → 填进输入框 */
+async function fetchFromUrl() {
+  const url = els.urlInput.value.trim();
+  if (!url) {
+    setError("请先填写网页链接。");
+    els.urlInput.focus();
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    els.textInput.value = String(reader.result || "");
-    els.fileHint.dataset.locked = "1";
-    els.fileHint.textContent = `已载入 ${file.name}`;
+  if (state.mode !== "server") {
+    setError(URL_NO_SERVER_REASON);
+    return;
+  }
+
+  setError("");
+  els.urlFetchBtn.disabled = true;
+  els.urlHint.classList.remove("err");
+  els.urlHint.textContent = "正在抓取正文…";
+
+  const token = els.tokenInput ? els.tokenInput.value.trim() : "";
+
+  try {
+    const res = await fetch("./api/fetch", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    let payload;
+    try {
+      payload = await res.json();
+    } catch (err) {
+      throw new Error(
+        "抓取接口没有返回 JSON —— 请求可能没到达应用服务。" +
+          "请确认服务已启动，或反向代理指向的是本应用的端口。"
+      );
+    }
+    if (!res.ok || !payload.ok) throw new Error(payload.error || `抓取失败（HTTP ${res.status}）。`);
+
+    const data = payload.data;
+    els.textInput.value = data.text;
+    const label = data.title ? data.title.slice(0, 30) : data.url;
+    const bits = [`${data.chars} 字`];
+    if (data.truncated) bits.push(`已截断至 ${state.maxInputChars} 字`);
+    lockFileHint();
+    els.fileHint.textContent = `已抓取 ${label}　${bits.join(" · ")}`;
+    els.urlHint.textContent = "";
     updateCharCount();
-    setError("");
     saveDraft();
-  };
-  reader.onerror = () => setError("文件读取失败，请确认是纯文本文件。");
-  reader.readAsText(file, "utf-8");
+    showToast("网页正文已载入");
+  } catch (err) {
+    els.urlHint.textContent = err.message || "抓取失败。";
+    els.urlHint.classList.add("err");
+  } finally {
+    els.urlFetchBtn.disabled = !state.urlFetch;
+  }
 }
 
 function saveDraft() {
@@ -598,7 +694,7 @@ async function generate() {
   setError("");
 
   if (!text) {
-    setError("请先粘贴文章正文，或上传 .md / .txt 文件。");
+    setError("请先粘贴文章正文，上传 .md / .txt / .csv / .docx / .xlsx / .pdf，或抓取网页链接。");
     els.textInput.focus();
     return;
   }
@@ -633,14 +729,24 @@ async function generate() {
 els.uploadBtn.addEventListener("click", () => els.fileInput.click());
 els.fileInput.addEventListener("change", (event) => {
   const file = event.target.files && event.target.files[0];
-  if (file) readFile(file);
+  if (file) loadFile(file);
   event.target.value = "";
+});
+
+els.urlFetchBtn.addEventListener("click", fetchFromUrl);
+els.urlInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    fetchFromUrl();
+  }
 });
 
 els.clearBtn.addEventListener("click", () => {
   els.textInput.value = "";
   delete els.fileHint.dataset.locked;
   els.fileHint.textContent = "";
+  els.urlHint.textContent = "";
+  els.urlHint.classList.remove("err");
   els.cards.textContent = "";
   els.result.hidden = true;
   els.emptyState.hidden = false;

@@ -9,9 +9,9 @@
  * 本脚本在本地完整还原该环境（用 node 起一个纯静态服务器，只托管 public/），
  * 分段校验：
  *   [1] 静态服务器：纯文件托管，无 /api
- *   [2] 同级资源：index.html 及其引用的 5 个文件全部可达（200）
+ *   [2] 同级资源：index.html 及其引用的 6 个文件全部可达（200）
  *   [3] 前端引用全部为相对路径（子目录部署不 404）
- *   [4] core.mjs 副本与 app/core.mjs 逐字一致
+ *   [4] core.mjs / extract.mjs 副本与源文件逐字一致
  *   [5] 无服务端探测：./api/health 得到 404 / SPA fallback 得到 HTML，
  *       两种情况都应触发「进入浏览器直连模式」（逻辑等价验证）
  *   [6] 浏览器直连真实抽卡：fetch 静态提示词 → buildSystemPrompt →
@@ -131,6 +131,7 @@ async function main() {
     "style.css",
     "app.js",
     "core.mjs",
+    "extract.mjs",
     "prompt-skill.md",
     "prompt-output-contract.md",
   ];
@@ -166,12 +167,19 @@ async function main() {
     'index.html 以 type="module" 加载 ./app.js',
     !!htmlScript && htmlScript[1] === "./app.js" && /type="module"/.test(htmlScript[0])
   );
+  check(
+    "app.js 以相对路径加载 extract.mjs（文件抽取也要能在浏览器里跑）",
+    /import\s*\{[^}]*\}\s*from\s*["']\.\/extract\.mjs["']/.test(appjs)
+  );
 
-  /* [4] core.mjs 副本一致性 */
+  /* [4] 副本一致性 */
   console.log("\n[4] 副本一致性");
   const coreSrc = fs.readFileSync(path.join(APP_DIR, "core.mjs"), "utf8");
   const coreCopy = fs.readFileSync(path.join(PUBLIC_DIR, "core.mjs"), "utf8");
   check("public/core.mjs 与 app/core.mjs 逐字一致", coreSrc === coreCopy);
+  const extractSrc = fs.readFileSync(path.join(APP_DIR, "extract.mjs"), "utf8");
+  const extractCopy = fs.readFileSync(path.join(PUBLIC_DIR, "extract.mjs"), "utf8");
+  check("public/extract.mjs 与 app/extract.mjs 逐字一致", extractSrc === extractCopy);
   const skillSrc = fs.readFileSync(path.join(APP_DIR, "prompt-skill.md"), "utf8");
   const skillCopy = fs.readFileSync(path.join(PUBLIC_DIR, "prompt-skill.md"), "utf8");
   check("public/prompt-skill.md 与 app/prompt-skill.md 一致", skillSrc === skillCopy);

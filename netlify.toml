@@ -27,8 +27,10 @@
   functions = "app/netlify/functions"
 
 # /api/* → 函数
-# 前端仍请求 /api/cards 与 /api/health，与自托管版本路径完全一致，
+# 前端仍请求 /api/health、/api/fetch 与 /api/cards，与自托管版本路径完全一致，
 # 因此前端代码不需要为部署方式做任何分支判断。
+# 注意：/api/fetch（网页抓取）也走函数，受免费版 10 秒执行上限约束，
+# 抓慢站点容易超时 —— 需要稳定抓取时更推荐自托管。
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

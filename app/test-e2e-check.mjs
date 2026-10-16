@@ -214,6 +214,32 @@ async function main() {
     console.log("  跳过  服务未启用 APP_TOKEN");
   }
 
+  /* 7. 网页抓取接口（零消耗：只测被拒绝的分支） */
+  console.log("\n[7] 网页抓取接口");
+
+  const badUrl = await post("/api/fetch", { url: "ftp://example.com/a" });
+  check("非 http(s) 链接返回 400", badUrl.status === 400, `实际 ${badUrl.status}`);
+  check(
+    "错误信息是中文可读提示",
+    /[\u4e00-\u9fa5]/.test(badUrl.json?.error || ""),
+    `实际 ${badUrl.json?.error}`
+  );
+
+  // SSRF 防护：默认不让服务端去访问内网地址
+  const privateUrl = await post("/api/fetch", { url: "http://127.0.0.1:22/" });
+  check("内网地址被拒绝（防 SSRF）", privateUrl.status === 400, `实际 ${privateUrl.status}`);
+  check(
+    "拒绝原因写清楚了",
+    /拒绝抓取/.test(privateUrl.json?.error || ""),
+    `实际 ${privateUrl.json?.error}`
+  );
+
+  const emptyUrl = await post("/api/fetch", {});
+  check("空链接返回 400", emptyUrl.status === 400, `实际 ${emptyUrl.status}`);
+
+  const fetchGet = await fetch(base + "/api/fetch", { method: "GET" });
+  check("/api/fetch 只接受 POST", [404, 405].includes(fetchGet.status), `实际 ${fetchGet.status}`);
+
   console.log(`\n结果：通过 ${passed} 项，失败 ${failed} 项`);
   process.exit(failed === 0 ? 0 : 1);
 }

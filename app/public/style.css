@@ -135,6 +135,33 @@ textarea::placeholder { color: var(--text-3); }
 }
 .input-meta .over { color: var(--err); }
 
+/* ---------- 网页链接 ---------- */
+
+.url-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.url-row input[type="url"] {
+  flex: 1; min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+.url-row input[type="url"]:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.url-row input[type="url"]:disabled {
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+.url-row input[type="url"]::placeholder { color: var(--text-3); }
+.url-hint { font-size: 12px; color: var(--text-3); margin: 0 2px 10px; min-height: 1.2em; }
+.url-hint.err { color: var(--err); }
+
 .token-box {
   margin-top: 14px;
   border: 1px solid var(--border);

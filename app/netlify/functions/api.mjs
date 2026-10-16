@@ -1,5 +1,5 @@
 /**
- * Netlify Functions 入口 —— /api/cards 与 /api/health
+ * Netlify Functions 入口 —— /api/health、/api/fetch 与 /api/cards
  *
  * 抽卡逻辑完全复用 core.mjs（与自托管版 server.js 同一份），
  * 提示词来自 prompt-bundle.mjs（由 sync-prompt.mjs 从 SKILL.md 生成）。
@@ -18,6 +18,7 @@
 
 import { buildSystemPrompt, generateCards, normalizeResult, demoResult } from "../../core.mjs";
 import { SKILL, OUTPUT_CONTRACT } from "../../prompt-bundle.mjs";
+import { fetchUrlText } from "../../fetch-url.mjs";
 
 /* ---------- 配置（全部来自环境变量） ---------- */
 
@@ -30,6 +31,9 @@ const config = {
   jsonMode: process.env.LLM_JSON_MODE === "1",
   dryRun: process.env.DRY_RUN === "1",
   timeoutMs: Number(process.env.LLM_TIMEOUT_MS || 8000),
+  // 抓网页也要算进 10 秒预算里，因此这里比自托管版保守得多
+  fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS || 8000),
+  allowPrivateFetch: process.env.ALLOW_PRIVATE_FETCH === "1",
 };
 
 // 给「全部尝试」留的总时间预算，必须小于平台超时，留出开销余量
@@ -75,7 +79,40 @@ async function handleHealth() {
     maxInputChars: config.maxInputChars,
     tokenRequired: Boolean(config.appToken),
     platform: "netlify-functions",
+    urlFetch: true,
   });
+}
+
+async function handleFetch(event) {
+  if (!authorized(event)) {
+    return json(401, { ok: false, error: "访问口令不正确。" });
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(readBody(event) || "{}");
+  } catch (err) {
+    return json(400, { ok: false, error: `请求体解析失败：${err.message}` });
+  }
+
+  try {
+    const data = await fetchUrlText(payload.url, {
+      timeoutMs: config.fetchTimeoutMs,
+      maxChars: config.maxInputChars,
+      allowPrivate: config.allowPrivateFetch,
+    });
+    return json(200, { ok: true, data });
+  } catch (err) {
+    const isUserError = /链接|无效|只支持|不是网页|没有抓到|正文|解析|拒绝抓取/.test(err.message);
+    const isTimeout = /超时|timeout|abort/i.test(err.message);
+    const hint = isTimeout
+      ? "\n\n原因：目标网页响应慢，超过了部署平台的单次执行时限。建议改用自托管部署（无此限制）。"
+      : "";
+    return json(isTimeout ? 504 : isUserError ? 400 : 502, {
+      ok: false,
+      error: `${err.message}${hint}`,
+    });
+  }
 }
 
 async function handleCards(event) {
@@ -185,6 +222,13 @@ export async function handler(event) {
       return json(405, { ok: false, error: "该接口只接受 POST。" });
     }
     return handleCards(event);
+  }
+
+  if (pathname.endsWith("/fetch")) {
+    if (event.httpMethod !== "POST") {
+      return json(405, { ok: false, error: "该接口只接受 POST。" });
+    }
+    return handleFetch(event);
   }
 
   return json(404, { ok: false, error: "接口不存在。" });

@@ -11,12 +11,13 @@
  * 产出：
  *   1) prompt-skill.md      —— 自托管（server.js 用 fs 读）
  *   2) prompt-bundle.mjs    —— Netlify Functions（打包时必须能 import，读不到 .md）
- *   3) public/ 下的三个副本 —— 纯静态托管的浏览器直连模式：
+ *   3) public/ 下的四个副本 —— 纯静态托管的浏览器直连模式：
  *        public/core.mjs                  浏览器 import，复用同一份抽卡逻辑
+ *        public/extract.mjs               浏览器 import，复用同一份文件抽取逻辑
  *        public/prompt-skill.md           浏览器 fetch，注入 system prompt
  *        public/prompt-output-contract.md  浏览器 fetch，JSON 输出契约
  *      静态托管没有服务端，浏览器只能加载 public/（对外目录）里的文件，
- *      所以这三个文件必须以副本形式放进 public/，与 index.html 同级。
+ *      所以这几个文件必须以副本形式放进 public/，与 index.html 同级。
  */
 
 import fs from "node:fs";
@@ -42,9 +43,11 @@ for (const [name, file] of Object.entries(SOURCES)) {
     process.exit(1);
   }
 }
-if (!fs.existsSync(path.join(APP_DIR, "core.mjs"))) {
-  console.error(`找不到 core.mjs：${path.join(APP_DIR, "core.mjs")}`);
-  process.exit(1);
+for (const name of ["core.mjs", "extract.mjs"]) {
+  if (!fs.existsSync(path.join(APP_DIR, name))) {
+    console.error(`找不到 ${name}：${path.join(APP_DIR, name)}`);
+    process.exit(1);
+  }
 }
 
 // SKILL.md 的 YAML frontmatter 是给 Skill 加载器看的，注入模型时去掉更干净
@@ -89,6 +92,7 @@ fs.writeFileSync(TARGET_BUNDLE, bundle, "utf8");
 
 fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 fs.copyFileSync(path.join(APP_DIR, "core.mjs"), path.join(PUBLIC_DIR, "core.mjs"));
+fs.copyFileSync(path.join(APP_DIR, "extract.mjs"), path.join(PUBLIC_DIR, "extract.mjs"));
 fs.copyFileSync(TARGET_MD, path.join(PUBLIC_DIR, "prompt-skill.md"));
 fs.copyFileSync(SOURCES.contract, path.join(PUBLIC_DIR, "prompt-output-contract.md"));
 
@@ -102,6 +106,7 @@ console.log(`  规模: ${lines} 行 / ${skill.length} 字符`);
 console.log("  说明: 已去除 frontmatter，其余内容逐字保留");
 console.log("已补齐静态托管前端依赖（public/，与 index.html 同级）：");
 console.log(`  ${rel(path.join(PUBLIC_DIR, "core.mjs"))}`);
+console.log(`  ${rel(path.join(PUBLIC_DIR, "extract.mjs"))}`);
 console.log(`  ${rel(path.join(PUBLIC_DIR, "prompt-skill.md"))}`);
 console.log(`  ${rel(path.join(PUBLIC_DIR, "prompt-output-contract.md"))}`);
-console.log("  说明: 纯静态托管的浏览器直连模式从这三个文件加载规则与逻辑");
+console.log("  说明: 纯静态托管的浏览器直连模式从这四个文件加载规则与逻辑");
